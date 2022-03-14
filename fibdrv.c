@@ -27,6 +27,17 @@ static DEFINE_MUTEX(fib_mutex);
 static long long fib_sequence(long long k)
 {
     /* FIXME: use clz/ctz and fast algorithms to speed up */
+
+    long long f[] = {0, 1};
+
+    for (int i = 2; i <= k; i++) {
+        f[(i & 1)] += f[((i - 1) & 1)];
+    }
+
+    return f[(k & 1)];
+
+    /* `ISO C90 forbids variable length array ‘f’ [-Wvla]` */
+#if 0    
     long long f[k + 2];
 
     f[0] = 0;
@@ -37,6 +48,7 @@ static long long fib_sequence(long long k)
     }
 
     return f[k];
+#endif
 }
 
 static int fib_open(struct inode *inode, struct file *file)
