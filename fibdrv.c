@@ -27,7 +27,6 @@ static DEFINE_MUTEX(fib_mutex);
 static long long fib_sequence(long long k)
 {
     /* FIXME: use clz/ctz and fast algorithms to speed up */
-
     long long f[] = {0, 1};
 
     for (int i = 2; i <= k; i++) {
@@ -38,6 +37,7 @@ static long long fib_sequence(long long k)
 
     /* `ISO C90 forbids variable length array ‘f’ [-Wvla]` */
 #if 0    
+    /* FIXME: C99 variable-length array (VLA) is not allowed in Linux kernel. */
     long long f[k + 2];
 
     f[0] = 0;
