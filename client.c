@@ -10,7 +10,7 @@
 int main()
 {
     char buf[256];
-    int offset = 100;
+    int offset = 500;
 
     int fd = open(FIB_DEV, O_RDWR);
     if (fd < 0) {

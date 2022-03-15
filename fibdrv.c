@@ -19,10 +19,10 @@ MODULE_VERSION("0.1");
 /* MAX_LENGTH is set to 92 because
  * ssize_t can't fit the number > 92
  */
-#define MAX_LENGTH 100
+#define MAX_LENGTH 500
 
 // big number data max size
-#define MAX_SIZE 100
+#define MAX_SIZE 256
 
 // big number
 typedef struct {
