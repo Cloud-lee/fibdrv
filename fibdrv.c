@@ -39,9 +39,12 @@ static void bn_init(bn *n, int num);
 static int bn_clz(char *data);
 static int bn_abs_compare(char *a, char *b);
 static void bn_add(bn *a, bn *b, bn *c);
+static void bn_sub(bn *a, bn *b, bn *c);
+static void bn_mul(bn *a, bn *b, bn *c);
+// static void bn_cpy(bn *a, bn *b);
 static void do_add(char *a, char *b, char *c);
 static void do_sub(char *a, char *b, char *c);
-static void bn_cpy(bn *a, bn *b);
+static void do_mul(char *a, char *b, char *c);
 
 #if 0
 static long long fib_sequence_original(long long k)
@@ -72,7 +75,8 @@ static long long fib_sequence_original(long long k)
 }
 #endif
 
-static bn fib_sequence(unsigned long long k)
+#if 0
+static bn fib_sequence_with_bn(unsigned long long k)
 {
     bn f[3];
     bn_init(&f[0], 0);
@@ -90,6 +94,53 @@ static bn fib_sequence(unsigned long long k)
 
     return f[2];
 }
+#endif
+
+static bn fib_sequence_fast_doubling(unsigned long long k)
+{
+    bn f[2];
+    bn_init(&f[0], 0);  // f(k)
+    bn_init(&f[1], 1);  // f(k + 1)
+
+    if (k < 2)
+        return f[k];
+
+    // t(0) = f(k) * f(k)
+    // t(1) = f(k + 1) * f(k + 1)
+    // t(2) = 2 * f(k) * f(k + 1)
+    bn t[3];
+
+    // fast doubling
+    // f(2k) = f(k) * [2 * f(k + 1) - f(k)]
+    //       = 2 * f(k) * f(k + 1) - f(k) * f(k)
+    //       = t(2) - t(0)
+    // f(2k + 1) = f(k) ^ 2 + f(k + 1) ^ 2
+    //           = f(k) * f(k) + f(k + 1) * f(k + 1)
+    //           = t(0) + t(1)
+    for (unsigned long long i = 1U << (63 - __builtin_clzll(k)); i; i >>= 1) {
+        bn_mul(&f[0], &f[0], &t[0]);  // t(0)
+        bn_mul(&f[1], &f[1], &t[1]);  // t(1)
+        bn_mul(&f[0], &f[1], &t[2]);
+        bn_add(&t[2], &t[2], &t[2]);  // t(2)
+        if (i & k) {
+            // next k = 2k + 1
+            // f(k) = f(2k + 1) = t(0) + t(1)
+            bn_add(&t[0], &t[1], &f[0]);
+            // f(k + 1) = f(2k + 2) = f(2k) + f(2k + 1)
+            //          = t(2) - t(0) + t(0) + t(1)
+            //          = t(2) + t(1)
+            bn_add(&t[2], &t[1], &f[1]);
+        } else {
+            // next k = 2k
+            // f(k) = f(2k)
+            bn_sub(&t[2], &t[0], &f[0]);
+            // f(k + 1) = f(2k + 1)
+            bn_add(&t[0], &t[1], &f[1]);
+        }
+    }
+    // return f(k)
+    return f[0];
+}
 
 // init big number
 static void bn_init(bn *n, int num)
@@ -99,6 +150,7 @@ static void bn_init(bn *n, int num)
     n->sign = num < 0 ? 1 : 0;
 }
 
+#if 0
 static void bn_cpy(bn *a, bn *b)
 {
     char buf[MAX_SIZE];
@@ -107,6 +159,7 @@ static void bn_cpy(bn *a, bn *b)
     a->size = b->size;
     a->sign = b->sign;
 }
+#endif
 
 // count leading zero
 static int bn_clz(char *data)
@@ -168,6 +221,57 @@ static void bn_add(bn *a, bn *b, bn *c)
     snprintf(c->data, MAX_SIZE, "%s", buf);
 }
 
+static void bn_sub(bn *a, bn *b, bn *c)
+{
+    char res[MAX_SIZE];
+    if (a->sign == b->sign) {
+        int tmp = bn_abs_compare(a->data, b->data);
+        if (tmp == 0) {
+            c->sign = 0;
+            snprintf(res, MAX_SIZE, "0");
+            c->size = strlen(res);
+        } else {
+            if (tmp == 1) {
+                c->sign = a->sign;
+                do_sub(a->data, b->data, res);
+            } else {
+                c->sign = b->sign;
+                do_sub(b->data, a->data, res);
+            }
+            c->size = strlen(res);
+        }
+    } else {
+        c->sign = a->sign;
+        if (a->size < b->size)
+            do_add(b->data, a->data, res);
+        else
+            do_add(a->data, b->data, res);
+        c->size = strlen(res);
+    }
+    char buf[MAX_SIZE];
+    snprintf(buf, MAX_SIZE, "%s", res);
+    snprintf(c->data, MAX_SIZE, "%s", buf);
+}
+
+static void bn_mul(bn *a, bn *b, bn *c)
+{
+    char res[MAX_SIZE];
+    if ((a->size == 1 && a->data[0] == '0') ||
+        (b->size == 1 && b->data[0] == '0')) {
+        c->sign = 0;
+        snprintf(res, MAX_SIZE, "0");
+        c->size = strlen(res);
+    } else {
+        c->sign = a->sign * b->sign;
+        do_mul(a->data, b->data, res);
+        c->size = strlen(res);
+    }
+
+    char buf[MAX_SIZE];
+    snprintf(buf, MAX_SIZE, "%s", res);
+    snprintf(c->data, MAX_SIZE, "%s", buf);
+}
+
 static void do_add(char *a, char *b, char *c)
 {
     int i, j, k = strlen(a) + 1;
@@ -209,6 +313,31 @@ static void do_sub(char *a, char *b, char *c)
         snprintf(c, MAX_SIZE, "%s", c + tmp);
 }
 
+static void do_mul(char *a, char *b, char *c)
+{
+    int l = strlen(a) + strlen(b);
+    for (int m = 0; m < l; m++)
+        c[m] = '0';
+    c[l--] = '\0';
+
+    for (int j = strlen(b) - 1; j >= 0; j--) {
+        int carry = 0, k = l;
+        for (int i = strlen(a) - 1; i >= 0; i--) {
+            int sum = (a[i] - '0') * (b[j] - '0') + (c[k] - '0') + carry;
+            c[k] = sum % 10 + '0';
+            carry = sum / 10;
+            k--;
+        }
+        if (carry)
+            c[k] = carry + '0';
+        l--;
+    }
+
+    int tmp = bn_clz(c);
+    if (tmp)
+        snprintf(c, MAX_SIZE, "%s", c + tmp);
+}
+
 static int fib_open(struct inode *inode, struct file *file)
 {
     if (!mutex_trylock(&fib_mutex)) {
@@ -231,7 +360,7 @@ static ssize_t fib_read(struct file *file,
                         loff_t *offset)
 {
     // return (ssize_t) fib_sequence(*offset);
-    bn res = fib_sequence(*offset);
+    bn res = fib_sequence_fast_doubling(*offset);
     char kbuf[MAX_SIZE];
     snprintf(kbuf, MAX_SIZE, "%s", res.data);
     return copy_to_user(buf, kbuf, MAX_SIZE);
