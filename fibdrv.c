@@ -8,6 +8,7 @@
 #include <linux/mutex.h>
 #include <linux/slab.h>    /* kmalloc(), kfree() */
 #include <linux/uaccess.h> /* copy_from_user(), copy_to_user() */
+//#include <linux/compiler.h> /* likely()/unlikely() */
 
 MODULE_LICENSE("Dual MIT/GPL");
 MODULE_AUTHOR("National Cheng Kung University, Taiwan");
@@ -22,7 +23,7 @@ MODULE_VERSION("0.1");
 #define MAX_LENGTH 500
 
 // big number data max size
-#define MAX_SIZE 256
+#define MAX_SIZE 128
 
 // big number
 typedef struct {
@@ -41,7 +42,7 @@ static int bn_abs_compare(char *a, char *b);
 static void bn_add(bn *a, bn *b, bn *c);
 static void bn_sub(bn *a, bn *b, bn *c);
 static void bn_mul(bn *a, bn *b, bn *c);
-// static void bn_cpy(bn *a, bn *b);
+static void bn_cpy(bn *a, bn *b);
 static void do_add(char *a, char *b, char *c);
 static void do_sub(char *a, char *b, char *c);
 static void do_mul(char *a, char *b, char *c);
@@ -101,8 +102,8 @@ static long long fib_sequence_fast_doubling(long long k)
 }
 #endif
 
-#if 0
-static bn fib_sequence_with_bn(unsigned long long k)
+#if 1
+static bn fib_sequence_iterate_with_bn(unsigned long long k)
 {
     bn f[3];
     bn_init(&f[0], 0);
@@ -176,7 +177,6 @@ static void bn_init(bn *n, int num)
     n->sign = num < 0 ? 1 : 0;
 }
 
-#if 0
 static void bn_cpy(bn *a, bn *b)
 {
     char buf[MAX_SIZE];
@@ -185,7 +185,6 @@ static void bn_cpy(bn *a, bn *b)
     a->size = b->size;
     a->sign = b->sign;
 }
-#endif
 
 // count leading zero
 static int bn_clz(char *data)
@@ -395,10 +394,26 @@ static ssize_t fib_read(struct file *file,
 /* write operation is skipped */
 static ssize_t fib_write(struct file *file,
                          const char *buf,
-                         size_t size,
+                         size_t mode,  // size
                          loff_t *offset)
 {
-    return 1;
+    ktime_t kt;
+    kt = ktime_get();
+    switch (mode) {
+    case 0:
+        fib_sequence_iterate_with_bn(*offset);
+        break;
+    case 1:
+        fib_sequence_fast_doubling_with_bn(*offset);
+        break;
+#if 0        
+    case 2:
+        kt = FIB_TIME_PROXY(bn_fdoubling_v0, *offset);
+        break;
+#endif
+    }
+    kt = ktime_sub(ktime_get(), kt);
+    return (ssize_t) ktime_to_ns(kt);
 }
 
 static loff_t fib_device_lseek(struct file *file, loff_t offset, int orig)

@@ -18,7 +18,7 @@ $(GIT_HOOKS):
 
 clean:
 	$(MAKE) -C $(KDIR) M=$(PWD) clean
-	$(RM) client out
+	$(RM) client out client_statistic
 load:
 	sudo insmod $(TARGET_MODULE).ko
 unload:
@@ -39,3 +39,9 @@ check: all
 	$(MAKE) unload
 	@diff -u out scripts/expected.txt && $(call pass)
 	@scripts/verify.py
+
+client_statistic: client_statistic.c
+	$(CC) -o $@ $^ -lm
+
+plot: all
+	sh do_measurement.sh > /dev/null
