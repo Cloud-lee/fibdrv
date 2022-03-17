@@ -76,6 +76,32 @@ static long long fib_sequence_original(long long k)
 #endif
 
 #if 0
+static long long fib_sequence_fast_doubling(long long k)
+{
+    if (k == 0)
+        return 0;
+
+    long long t0 = 1, t1 = 1, t3 = 1, t4 = 0;
+    long long i = 1;
+    while (i < k) {
+        if ((i << 1) <= k) {
+            t4 = t1 * t1 + t0 * t0; 
+            t3 = t0 * (2 * t1 - t0);
+            t0 = t3; 
+            t1 = t4; 
+            i <<= 1;
+        } else {
+            t0 = t3; 
+            t3 = t4; 
+            t4 = t0 + t4; 
+            i++;
+        }
+    }   
+    return t3; 
+}
+#endif
+
+#if 0
 static bn fib_sequence_with_bn(unsigned long long k)
 {
     bn f[3];
@@ -96,7 +122,7 @@ static bn fib_sequence_with_bn(unsigned long long k)
 }
 #endif
 
-static bn fib_sequence_fast_doubling(unsigned long long k)
+static bn fib_sequence_fast_doubling_with_bn(unsigned long long k)
 {
     bn f[2];
     bn_init(&f[0], 0);  // f(k)
@@ -360,7 +386,7 @@ static ssize_t fib_read(struct file *file,
                         loff_t *offset)
 {
     // return (ssize_t) fib_sequence(*offset);
-    bn res = fib_sequence_fast_doubling(*offset);
+    bn res = fib_sequence_fast_doubling_with_bn(*offset);
     char kbuf[MAX_SIZE];
     snprintf(kbuf, MAX_SIZE, "%s", res.data);
     return copy_to_user(buf, kbuf, MAX_SIZE);
